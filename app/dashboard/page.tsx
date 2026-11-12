@@ -118,12 +118,13 @@ export default function DashboardPage() {
         confirmedWishlistTotal += convertedAmount;
       }
 
-      // Saving accounts
+      // Saving accounts — only positive balances are reserved. A negative saving balance
+      // means money was spent from savings that wasn't there, so it reduces available funds.
       const savingAccounts = accounts.filter((acc) => acc.isSaving);
       let savingAccountsTotal = 0;
       if (savingAccounts.length > 0) {
         savingAccountsTotal = await convertMultipleCurrencies(
-          savingAccounts.map((acc) => ({ amount: acc.balance, currency: acc.currency })),
+          savingAccounts.map((acc) => ({ amount: Math.max(0, acc.balance), currency: acc.currency })),
           baseCurrency
         );
       }
