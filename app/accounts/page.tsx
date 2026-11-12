@@ -11,6 +11,7 @@ import { Button } from '@/shared/components/ui';
 import Modal from '@/shared/components/ui/Modal';
 import FAB from '@/shared/components/ui/FAB';
 import AddAccountForm from '@/modules/accounts/AddAccountForm';
+import { getAccountBalanceBreakdown } from '@/modules/accounts/accountBalance';
 
 import { accountRepository } from '@/core/repositories/AccountRepository';
 import { CreateAccountInput, CURRENCIES } from '@/core/models';
@@ -90,6 +91,7 @@ export default function AccountsPage() {
                     ? CATEGORY_ICONS[account.icon as keyof typeof CATEGORY_ICONS] || Wallet
                     : Wallet;
                   const accountColor = account.color || '#6b7280';
+                  const currentBalance = getAccountBalanceBreakdown(account, transactions).current;
 
                   return (
                   <Link
@@ -123,9 +125,9 @@ export default function AccountsPage() {
                         <div className="text-right">
                           <p className={cn(
                             "text-sm font-bold",
-                            account.balance < 0 && "text-destructive"
+                            currentBalance < 0 && "text-destructive"
                           )}>
-                            {getCurrencySymbol(account.currency)} {account.balance.toFixed(2)}
+                            {getCurrencySymbol(account.currency)} {currentBalance.toFixed(2)}
                           </p>
                         </div>
                         <ArrowRight className="h-4 w-4 text-muted-foreground" />

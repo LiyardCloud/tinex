@@ -22,6 +22,7 @@ import { transactionRepository } from '@/core/repositories/TransactionRepository
 import { categoryRepository } from '@/core/repositories/CategoryRepository';
 import { tagRepository } from '@/core/repositories/TagRepository';
 import { Account, Transaction, Category, Tag, CURRENCIES, ACCOUNT_TYPES, AccountType, getAccountDefaults } from '@/core/models';
+import { getAccountBalanceBreakdown } from '@/modules/accounts/accountBalance';
 import { CATEGORY_ICONS } from '@/shared/config/icons';
 import { cn } from '@/shared/utils/cn';
 
@@ -33,7 +34,7 @@ export default function AccountDetailPage() {
   const accountId = params.id as string;
   const router = useRouter();
   const { user, authLoading } = useAuth();
-  const { refreshAccounts, categories: ctxCategories, tags: ctxTags } = useAppData();
+  const { refreshAccounts, categories: ctxCategories, tags: ctxTags, scheduledTransactions } = useAppData();
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<Account | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -173,7 +174,9 @@ export default function AccountDetailPage() {
     const parsed = parseFloat(newBalance);
     if (isNaN(parsed)) return;
     try {
-      await accountRepository.updateBalance(account.id, parsed);
+      // The user enters the current (real) balance; the stored balance also carries future-dated transactions
+      const { futureImpact } = getAccountBalanceBreakdown(account, transactions);
+      await accountRepository.updateBalance(account.id, parsed + futureImpact);
       await refreshAccounts();
       setEditingBalance(false);
       await loadAccountData(accountId, user.uid);
@@ -202,7 +205,8 @@ export default function AccountDetailPage() {
     ? CATEGORY_ICONS[account.icon as keyof typeof CATEGORY_ICONS] || Wallet
     : Wallet;
   const accountColor = account.isSaving ? '#f59e0b' : (account.color || '#6b7280');
-  const isNegative = account.balance < 0;
+  const balance = getAccountBalanceBreakdown(account, transactions, scheduledTransactions);
+  const isNegative = balance.available < 0;
   const sym = getCurrencySymbol(account.currency);
 
   return (
@@ -277,7 +281,7 @@ export default function AccountDetailPage() {
           <CardHeader className="pb-2 relative z-10">
             <div className="flex items-center justify-between">
               <CardDescription className="text-xs font-medium uppercase tracking-widest text-muted-foreground/70">
-                Current Balance
+                Available Balance
               </CardDescription>
               <div className="flex items-center gap-2">
                 {account.isDefault && (
@@ -322,18 +326,23 @@ export default function AccountDetailPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="mt-1">
                 <CardTitle className={cn('text-4xl font-bold tracking-tight', isNegative && 'text-destructive')}>
-                  {sym}{account.balance.toFixed(2)}
+                  {sym}{balance.available.toFixed(2)}
                 </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={() => { setNewBalance(account.balance.toString()); setEditingBalance(true); }}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 mt-1">
+                  <p className="text-xs text-muted-foreground">
+                    Total balance: {sym}{balance.current.toFixed(2)}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setNewBalance(balance.current.toFixed(2)); setEditingBalance(true); }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardHeader>

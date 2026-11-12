@@ -28,7 +28,9 @@ import {
   SYSTEM_CATEGORIES,
   CURRENCIES,
   ScheduledTransaction,
+  Account,
 } from "@/core/models";
+import { getAccountBalanceBreakdown } from "@/modules/accounts/accountBalance";
 import { scheduledTransactionRepository, advanceNextDate } from "@/core/repositories/ScheduledTransactionRepository";
 import {
   convertMultipleCurrencies,
@@ -56,7 +58,7 @@ export default function DashboardPage() {
     balance: 0,
     transactionCount: 0,
   });
-  const [allAccounts, setAllAccounts] = useState(accounts);
+  const [allAccounts, setAllAccounts] = useState<(Account & { currentBalance?: number })[]>(accounts);
   const [totalBalance, setTotalBalance] = useState<number>(0);
   const [availableBalance, setAvailableBalance] = useState<number>(0); // excludes future txns, confirmed wishlists, saving accounts
   const [upcomingIncome, setUpcomingIncome] = useState<number>(0);
@@ -69,15 +71,16 @@ export default function DashboardPage() {
     try {
       const baseCurrency = userSettings.baseCurrency;
 
-      // Sort accounts by converted balance
+      // Account cards show the current balance (future-dated transactions not applied), sorted by it
       const accountsWithConvertedBalance = await Promise.all(
         accounts.map(async (account) => {
+          const currentBalance = getAccountBalanceBreakdown(account, transactions).current;
           const convertedBalance = await convertCurrency(
-            account.balance,
+            currentBalance,
             account.currency,
             baseCurrency
           );
-          return { ...account, convertedBalance };
+          return { ...account, currentBalance, convertedBalance };
         })
       );
       const sortedAccounts = accountsWithConvertedBalance.sort(
@@ -359,7 +362,8 @@ export default function DashboardPage() {
                     ? CATEGORY_ICONS[account.icon as keyof typeof CATEGORY_ICONS] || Wallet
                     : Wallet;
                   const accountColor = account.isSaving ? "#f59e0b" : (account.color || "#6b7280");
-                  const isNegativeBalance = account.balance < 0;
+                  const cardBalance = account.currentBalance ?? account.balance;
+                  const isNegativeBalance = cardBalance < 0;
 
                   return (
                     <Link key={account.id} href={`/accounts/${account.id}`} className="flex-shrink-0">
@@ -387,7 +391,7 @@ export default function DashboardPage() {
                           "text-sm font-bold tracking-tight",
                           isNegativeBalance ? "text-destructive" : "text-foreground"
                         )}>
-                          {getCurrencySymbol(account.currency)}{account.balance.toFixed(2)}
+                          {getCurrencySymbol(account.currency)}{cardBalance.toFixed(2)}
                         </p>
                       </div>
                     </Link>
