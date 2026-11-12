@@ -55,7 +55,17 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       const cats = await categoryRepository.getByUserId(uid!);
       if (cats.length === 0) {
-        await categoryRepository.createDefaultCategories(uid!);
+        // getDocs can return an empty cached snapshot when offline. Seed defaults only
+        // when the server confirms the user has no categories — otherwise they get duplicated.
+        let hasOnServer: boolean;
+        try {
+          hasOnServer = await categoryRepository.hasAnyOnServer(uid!);
+        } catch {
+          return cats;
+        }
+        if (!hasOnServer) {
+          await categoryRepository.createDefaultCategories(uid!);
+        }
         return categoryRepository.getByUserId(uid!);
       }
       return cats;

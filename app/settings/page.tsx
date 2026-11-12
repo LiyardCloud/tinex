@@ -23,7 +23,9 @@ import {
   DatabaseBackup,
   HardDriveUpload,
   ArrowLeftRight,
+  GitMerge,
 } from 'lucide-react';
+import { planCategoryMerge, describeCategoryMergePlan, executeCategoryMerge } from '@/modules/categories';
 import { addDoc, collection, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { FIREBASE_COLLECTIONS } from '@/shared/config/constants';
@@ -44,7 +46,7 @@ import { convertCurrency } from '@/shared/services/currencyService';
 
 export default function ProfilePage() {
   const { user, authLoading, signOut } = useAuth();
-  const { userSettings, dataLoading, accounts, refreshUserSettings, refreshCategories, refreshTransactions } = useAppData();
+  const { userSettings, dataLoading, accounts, refreshUserSettings, refreshCategories, refreshTransactions, refreshScheduledTransactions } = useAppData();
   const [clearing, setClearing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -487,6 +489,32 @@ export default function ProfilePage() {
     }
   };
 
+  const handleMergeDuplicateCategories = async () => {
+    if (!user) return;
+
+    setClearing(true);
+    try {
+      const categories = await categoryRepository.getByUserId(user.uid);
+      const plan = await planCategoryMerge(user.uid, categories);
+      if (plan.groups.length === 0) {
+        alert('No duplicate categories found.');
+        return;
+      }
+
+      const summary = describeCategoryMergePlan(plan);
+      if (!confirm(`${summary}\n\nThe oldest category in each group is kept. Merge now?`)) return;
+
+      await executeCategoryMerge(plan);
+      await Promise.all([refreshCategories(), refreshTransactions(), refreshScheduledTransactions()]);
+      alert('Duplicate categories merged.');
+    } catch (error) {
+      console.error('Failed to merge duplicate categories:', error);
+      alert('Failed to merge duplicate categories. Please try again.');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleRegenerateCategories = async () => {
     if (!user) return;
 
@@ -755,6 +783,17 @@ export default function ProfilePage() {
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Regenerate Categories
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-primary hover:text-primary border-primary/50"
+              onClick={handleMergeDuplicateCategories}
+              disabled={clearing}
+            >
+              <GitMerge className="h-4 w-4 mr-2" />
+              Merge Duplicate Categories
             </Button>
 
             <Button

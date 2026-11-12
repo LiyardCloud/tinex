@@ -5,9 +5,11 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -132,6 +134,16 @@ export class CategoryRepository {
 
     const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
     await Promise.all(deletePromises);
+  }
+
+  /**
+   * Check on the server (never the local cache) whether the user has any categories.
+   * Throws when the server is unreachable.
+   */
+  async hasAnyOnServer(userId: string): Promise<boolean> {
+    const q = query(collection(db, this.collectionName), where('userId', '==', userId), limit(1));
+    const snapshot = await getDocsFromServer(q);
+    return !snapshot.empty;
   }
 
   /**
